@@ -52,6 +52,10 @@
     var promoCode = getParameter('code', '');
     var noClick = getParameter('noclick', 'false');
     var checkInterval = getParameter('check', 100);  // 默认检查间隔为 500 毫秒
+    var CreateAccount = getParameter('create', 'false');  // 默认检查间隔为 500 毫秒
+    var email = getParameter('email', null);  // 默认空字符串
+    var pass = getParameter('pass', null);    // 默认空字符串
+
 
     // 如果 noclick 为 true，停止自动化操作
     if (noClick === 'false') {
@@ -80,29 +84,57 @@
         }
     }
 
+    // 自动登录
+    function autoLogin() {
+        var alreadyRegisteredButton = document.querySelector('#btnAlreadyRegistered');
+        if (alreadyRegisteredButton) {
+            alreadyRegisteredButton.click();  // 点击 "Already Registered" 按钮
+        }
+        // 1. 检查是否存在登录表单
+        var loginContainer = document.querySelector('#containerExistingUserSignin');
+        if (loginContainer) {
+            // 2. 检查是否存在电子邮件和密码输入框
+            var emailInput = document.querySelector('#inputLoginEmail');
+            var passInput = document.querySelector('#inputLoginPassword');
+            if (emailInput && passInput) {
+                // 填写电子邮件和密码
+                emailInput.value = email;
+                passInput.value = pass;
+                
+                // 点击登录按钮
+                document.querySelector('#btnExistingLogin').click();
+                console.log('Attempting auto-login with email:', email);
+            } else {
+                console.log('No email and pass, abort');
+            }
+        } 
+    }
+    
     // Complete：接受 TOS 并点击 complete 订单
     function complete() {
-        // 1. 检查是否存在 "account active" 元素
-        var accountActive = document.querySelector('.account.active');
-        if (accountActive) {
+        var CompleteOrderButton = document.querySelector('#btnCompleteOrder')
+        if (CompleteOrderButton) {
+            // 1. 检查是否存在 "account active" 元素
             // 2. 如果 "account active" 元素存在，则执行接下来的操作
-            var tosCheckbox = document.querySelector('#accepttos');
-            if (tosCheckbox) {
+            var accountActive = document.querySelector('.account.active');
+            if (accountActive) {
+                var tosCheckbox = document.querySelector('#accepttos');
                 if (!tosCheckbox.checked) {
-                    tosCheckbox.click();  // 勾选复选框
+                    tosCheckbox.checked = true;  // 直接修改 checked 属性
                 }
-                document.querySelector('#btnCompleteOrder').click();  // 点击完成订单按钮
+                CompleteOrderButton.click();  // 点击完成订单按钮
             } else {
-                setTimeout(function() {
-                    complete();  // 等待后再次检查
-                }, waitMS);
+                // 如果没有找到 "account active" 元素，则不尝试自动登录
+                console.log('Account information not available. Waiting for account...');
+                autoLogin()
+                // setTimeout(function() {
+                //     complete();  // 等待后再次检查
+                // }, 20000);
             }
         } else {
-            // 如果没有找到 "account active" 元素，则不执行刷新或点击操作
-            console.log('Account information not available. Waiting for account...');
-            // setTimeout(function() {
-            //     complete();  // 等待后再次检查
-            // }, 20000);
+            setTimeout(function() {
+                complete();  // 等待后再次检查
+            }, waitMS);
         }
     }
 
@@ -110,7 +142,9 @@
     function configure() {
         var configureButton = document.querySelector('#btnCompleteProductConfig');
         if (configureButton) {
-            configureButton.click();  // 点击配置按钮
+            setTimeout(function () {
+                configureButton.click();  // 延迟 200ms 后点击配置按钮
+            }, 200);  // 等待 200 毫秒后点
         } else {
             setTimeout(function () {
                 configure();  // 等待后再次检查
@@ -118,10 +152,14 @@
         }
     }
 
-    // 根据 type 执行相应的函数，若不匹配则等待后重新加载页面
 
+
+    // 根据 type 执行相应的函数，若不匹配则等待后重新加载页面
     if (pageType === 'confproduct') {
         configure();  // 执行 configure 操作
+    } else if (pageType === 'viewinvoice') {
+        //pass
+        console.log('Congratulations! This is the invoice view page.');
     } else if (pageType === 'view') {
         checkout(promoCode);  // 执行 checkout 操作
     } else if (pageType === 'checkout') {
