@@ -82,16 +82,27 @@
 
     // Complete：接受 TOS 并点击 complete 订单
     function complete() {
-        var tosCheckbox = document.querySelector('#accepttos');
-        if (tosCheckbox) {
-            if (!tosCheckbox.checked) {
-                tosCheckbox.click();  // 勾选复选框
+        // 1. 检查是否存在 "account active" 元素
+        var accountActive = document.querySelector('.account.active');
+        if (accountActive) {
+            // 2. 如果 "account active" 元素存在，则执行接下来的操作
+            var tosCheckbox = document.querySelector('#accepttos');
+            if (tosCheckbox) {
+                if (!tosCheckbox.checked) {
+                    tosCheckbox.click();  // 勾选复选框
+                }
+                document.querySelector('#btnCompleteOrder').click();  // 点击完成订单按钮
+            } else {
+                setTimeout(function() {
+                    complete();  // 等待后再次检查
+                }, waitMS);
             }
-            document.querySelector('#btnCompleteOrder').click();  // 点击完成订单按钮
         } else {
-            setTimeout(function () {
-                complete();  // 等待后再次检查
-            }, waitMS);
+            // 如果没有找到 "account active" 元素，则不执行刷新或点击操作
+            console.log('Account information not available. Waiting for account...');
+            // setTimeout(function() {
+            //     complete();  // 等待后再次检查
+            // }, 20000);
         }
     }
 
