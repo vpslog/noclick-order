@@ -4,12 +4,127 @@
 // @version      1.1
 // @description  自动下单
 // @author       VPSLOG
-// @match        *://*/*
+// @match        *://*/*cart.php*
+// @match        *://*/*index.php*
 // @grant        none
 // ==/UserScript==
 
 (function () {
     'use strict';
+
+    // 检查 localStorage 是否已有关闭状态
+    if (localStorage.getItem('noclickClosed') === 'true') {
+        console.log("UI has been closed previously. Exiting...");
+        return;  // 如果已关闭过，跳过执行
+    }
+
+    function injectStyles() {
+        var style = document.createElement('style');
+        style.innerHTML = `
+        #floatingInputContainer {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 10px;  /* 减小 padding 使容器更紧凑 */
+            background-color: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            z-index: 9999;
+            border-radius: 8px;
+            width: 250px;
+            box-sizing: border-box;  /* 防止 padding 增加整体宽度 */
+        }
+
+        /* label 到 input 之间的距离 */
+        #floatingInputContainer label {
+            font-size: 14px;
+            margin-bottom: 2px;  /* 减小 label 的下边距 */
+            display: block;  /* 确保 label 是块级元素 */
+        }
+
+        #floatingInputContainer input, #floatingInputContainer button {
+            width: 100%;
+            padding: 8px;  /* 减小 padding 使输入框和按钮更紧凑 */
+            margin-bottom: 4px;  /* 减小 margin，减少垂直间距 */
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;  /* 保证 padding 不会超出容器 */
+            line-height: 1.2;  /* 缩小行高，减少输入框中的间距 */
+        }
+
+            /* 关闭按钮样式 */
+            #closeButton {
+                background-color: gray;
+            }
+
+        #executeButton {
+                background-color: #007bff;;
+            }
+
+        #floatingInputContainer button {
+            margin-top: 8px;  /* 减小 margin，减少垂直间距 */
+            color: white;
+            border: none;
+        }
+
+            /* 使按钮和关闭按钮在同一行 */
+            #floatingInputContainer .button-container {
+                display: flex;
+                justify-content: space-between;
+                gap: 10px;
+            }
+
+
+    `;
+        document.head.appendChild(style);
+    }
+
+    // 2. 注入 HTML 创建浮动输入框，包括 Coupon Code 输入框
+    function injectInputForm() {
+        var formHTML = `
+        <div id="floatingInputContainer">
+            <label for="inputUsername">邮箱:</label>
+            <input type="text" id="inputUsername" placeholder="Enter username">
+            <label for="inputPassword">密码:</label>
+            <input type="password" id="inputPassword" placeholder="Enter password">
+            <label for="inputCouponCode">优惠码:</label>
+            <input type="text" id="inputCouponCode" placeholder="Enter coupon code">
+            <div class="button-container">
+                <button id="executeButton">执行脚本</button>
+                <button id="closeButton">关闭</button>
+            </div>
+        </div>
+    `;
+        document.body.insertAdjacentHTML('beforeend', formHTML);
+
+        // 绑定关闭按钮事件
+        document.querySelector('#closeButton').addEventListener('click', function () {
+            //            localStorage.setItem('noclickClosed', 'true');  // 将关闭状态保存到 localStorage
+            document.querySelector('#floatingInputContainer').style.display = 'none';  // 隐藏控件
+        });
+
+        // 给按钮绑定点击事件
+        document.getElementById('executeButton').addEventListener('click', function () {
+            var email = document.getElementById('inputUsername').value;
+            var pass = document.getElementById('inputPassword').value;
+            var promoCode = document.getElementById('inputCouponCode').value || '';
+            
+            // 保存到 sessionStorage
+            saveToSessionStorage('email', email);
+            saveToSessionStorage('pass', pass);
+            saveToSessionStorage('code', promoCode);
+            
+            saveToSessionStorage('noclick',true)
+            noclickRun()
+            // if (username && password && couponCode) {
+            //     console.log('Username:', username);
+            //     console.log('Password:', password);
+            //     console.log('Coupon Code:', couponCode);
+            //     executeScript(username, password, couponCode); // 执行脚本
+            // } else {
+            //     alert('Please enter username, password, and coupon code!');
+            // }
+        });
+    }
 
     // 解析 hash 中的自定义格式参数，例如 #sleep:5|code:DISCOUNT123
     function getHashParameter(param) {
@@ -47,30 +162,6 @@
         return valueFromSession !== null ? valueFromSession : defaultValue;  // 如果 sessionStorage 也没有，则返回默认值
     }
 
-    // 初始化参数：优先从 hash 中获取，否则从 sessionStorage 中获取
-    var sleep = getParameter('sleep', 5);  // 默认每隔 5 秒刷新一次
-    var promoCode = getParameter('code', '');
-    var noClick = getParameter('noclick', 'false');
-    var checkInterval = getParameter('check', 100);  // 默认检查间隔为 500 毫秒
-    var CreateAccount = getParameter('create', 'false');  // 默认检查间隔为 500 毫秒
-    var email = getParameter('email', null);  // 默认空字符串
-    var pass = getParameter('pass', null);    // 默认空字符串
-
-
-    // 如果 noclick 为 true，停止自动化操作
-    if (noClick === 'false') {
-        console.log('noclick=false, script will not auto-order.');
-        return;
-    }
-
-    var urlParams = new URLSearchParams(window.location.search);
-    var pageType = urlParams.get('a'); // 获取 'a' 参数
-
-    // 开始自动化逻辑
-    var sleepMS = parseInt(sleep) * 1000;
-    var waitMS = parseInt(checkInterval);
-
-
     // Checkout：输入 promoCode 并点击 checkout 按钮
     function checkout(promoCode) {
         var promoCodeInput = document.querySelector('#inputPromotionCode');
@@ -100,16 +191,16 @@
                 // 填写电子邮件和密码
                 emailInput.value = email;
                 passInput.value = pass;
-                
+
                 // 点击登录按钮
                 document.querySelector('#btnExistingLogin').click();
                 console.log('Attempting auto-login with email:', email);
             } else {
                 console.log('No email and pass, abort');
             }
-        } 
+        }
     }
-    
+
     // Complete：接受 TOS 并点击 complete 订单
     function complete() {
         var CompleteOrderButton = document.querySelector('#btnCompleteOrder')
@@ -132,7 +223,7 @@
                 // }, 20000);
             }
         } else {
-            setTimeout(function() {
+            setTimeout(function () {
                 complete();  // 等待后再次检查
             }, waitMS);
         }
@@ -154,20 +245,48 @@
 
 
 
-    // 根据 type 执行相应的函数，若不匹配则等待后重新加载页面
-    if (pageType === 'confproduct') {
-        configure();  // 执行 configure 操作
-    } else if (pageType === 'viewinvoice') {
-        //pass
-        console.log('Congratulations! This is the invoice view page.');
-    } else if (pageType === 'view') {
-        checkout(promoCode);  // 执行 checkout 操作
-    } else if (pageType === 'checkout') {
-        complete();  // 执行 complete 操作
+    // 初始化参数：优先从 hash 中获取，否则从 sessionStorage 中获取
+    var sleep = getParameter('sleep', 5);  // 默认每隔 5 秒刷新一次
+    var promoCode = getParameter('code', '');
+    var noClick = getParameter('noclick', 'false');
+    var checkInterval = getParameter('check', 100);  // 默认检查间隔为 500 毫秒
+    var CreateAccount = getParameter('create', 'false');  // 默认检查间隔为 500 毫秒
+    var email = getParameter('email', null);  // 默认空字符串
+    var pass = getParameter('pass', null);    // 默认空字符串
+
+    var urlParams = new URLSearchParams(window.location.search);
+    var pageType = urlParams.get('a'); // 获取 'a' 参数
+
+    // 开始自动化逻辑
+    var sleepMS = parseInt(sleep) * 1000;
+    var waitMS = parseInt(checkInterval);
+
+    injectStyles(); // 注入样式
+    injectInputForm(); // 注入浮动输入框
+
+    // 如果 noclick 为 true，停止自动化操作
+    if (noClick === 'false') {
+        console.log('noclick=false, script will not auto-order.');
+        return;
     } else {
-        setTimeout(function () {
-            window.location.reload();  // 页面不匹配，等待后重新加载页面
-        }, sleepMS);
+        noclickRun()
     }
 
+    function noclickRun() {
+        // 根据 type 执行相应的函数，若不匹配则等待后重新加载页面
+        if (pageType === 'confproduct') {
+            configure();  // 执行 configure 操作
+        } else if (pageType === 'viewinvoice') {
+            //pass
+            console.log('Congratulations! This is the invoice view page.');
+        } else if (pageType === 'view') {
+            checkout(promoCode);  // 执行 checkout 操作
+        } else if (pageType === 'checkout') {
+            complete();  // 执行 complete 操作
+        } else {
+            setTimeout(function () {
+                window.location.reload();  // 页面不匹配，等待后重新加载页面
+            }, sleepMS);
+        }
+    }
 })();
